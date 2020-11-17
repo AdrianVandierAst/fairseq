@@ -210,8 +210,10 @@ class Wav2Vec2Config(FairseqDataclass):
         metadata={"help": "number of groups for convolutional positional embedding"},
     )
 
-    latent_temp: Tuple[float, float, float] = field(
-        default=(2, 0.5, 0.999995),
+    # Union with str for old model checkpoints compatibility. But Union not supported in Omegaconf: https://github.com/omry/omegaconf/pull/381
+    # latent_temp: Union[Tuple[float, float, float], str] = field(
+    latent_temp: str = field(
+        default="(2, 0.5, 0.999995)",
         metadata={
             "help": "temperature for latent variable sampling. "
             "can be tuple of 3 values (start, end, decay)"
@@ -277,7 +279,7 @@ class Wav2Vec2Model(BaseFairseqModel):
             self.quantizer = GumbelVectorQuantizer(
                 dim=self.embed,
                 num_vars=cfg.latent_vars,
-                temp=cfg.latent_temp,
+                temp=eval(cfg.latent_temp) if isinstance(cfg.latent_temp, str) else cfg.latent_temp,
                 groups=cfg.latent_groups,
                 combine_groups=False,
                 vq_dim=vq_dim,
@@ -296,7 +298,7 @@ class Wav2Vec2Model(BaseFairseqModel):
                 self.input_quantizer = GumbelVectorQuantizer(
                     dim=self.embed,
                     num_vars=cfg.latent_vars,
-                    temp=cfg.latent_temp,
+                    temp=eval(cfg.latent_temp) if isinstance(cfg.latent_temp, str) else cfg.latent_temp,
                     groups=cfg.latent_groups,
                     combine_groups=False,
                     vq_dim=vq_dim,
@@ -444,7 +446,6 @@ class Wav2Vec2Model(BaseFairseqModel):
         return logits
 
     def forward(self, source, padding_mask=None, mask=True, features_only=False):
-
         if self.feature_grad_mult > 0:
             features = self.feature_extractor(source)
             if self.feature_grad_mult != 1.0:
